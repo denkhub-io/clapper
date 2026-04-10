@@ -36,25 +36,25 @@ def save_config(cfg):
 
 # ─── TTS ─────────────────────────────────────────────────────────────────────
 
-
 def say(text, wait=False):
     if IS_MAC:
         p = subprocess.Popen(["say", "-v", "Luca", text])
         if wait:
             p.wait()
     elif IS_WIN:
-        # Usa PowerShell per il TTS — niente threading, niente pyttsx3
-        ps_text = text.replace("'", "''")
-        cmd = (
-            f"powershell -NoProfile -Command \""
+        ps_text = text.replace('"', '`"').replace("'", "''")
+        cmd = [
+            "powershell", "-NoProfile", "-Command",
             f"Add-Type -AssemblyName System.Speech; "
             f"$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
-            f"$s.Speak('{ps_text}')\""
-        )
+            f"$s.Speak('{ps_text}')"
+        ]
         if wait:
-            subprocess.run(cmd, shell=True, capture_output=True)
+            subprocess.run(cmd, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
-            subprocess.Popen(cmd, shell=True)
+            subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def typewrite(text, delay=0.03):
     for ch in text:
@@ -65,19 +65,21 @@ def typewrite(text, delay=0.03):
     sys.stdout.flush()
 
 def speak_and_show(text, voice_text=None, delay=0.03):
+    voice = voice_text or text
     if IS_MAC:
-        p = subprocess.Popen(["say", "-v", "Luca", voice_text or text])
+        p = subprocess.Popen(["say", "-v", "Luca", voice])
         typewrite(f"  {text}", delay)
         p.wait()
     elif IS_WIN:
-        ps_text = (voice_text or text).replace("'", "''")
-        cmd = (
-            f"powershell -NoProfile -Command \""
+        ps_text = voice.replace('"', '`"').replace("'", "''")
+        cmd = [
+            "powershell", "-NoProfile", "-Command",
             f"Add-Type -AssemblyName System.Speech; "
             f"$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
-            f"$s.Speak('{ps_text}')\""
-        )
-        p = subprocess.Popen(cmd, shell=True)
+            f"$s.Speak('{ps_text}')"
+        ]
+        p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         typewrite(f"  {text}", delay)
         p.wait()
     else:
@@ -85,20 +87,36 @@ def speak_and_show(text, voice_text=None, delay=0.03):
 
 # ─── SETUP WIZARD ────────────────────────────────────────────────────────────
 
-def clean_app_name(raw):
-    """Estrae il nome app da qualsiasi input: path, .app, .exe, drag & drop."""
-    raw = raw.strip().rstrip("/")
-    raw = raw.replace("\\", "/").strip("'\"")
-    if "/" in raw:
-        raw = raw.split("/")[-1]
-    if raw.endswith(".app"):
-        raw = raw[:-4]
-    if raw.endswith(".exe"):
-        raw = raw[:-4]
-    # Su Windows, rimuovi .lnk (shortcut)
-    if raw.endswith(".lnk"):
-        raw = raw[:-4]
-    return raw
+def clean_app_input(raw):
+    """Restituisce (display_name, launch_path) dall'input utente."""
+    raw = raw.strip().strip("'\"")
+
+    if IS_MAC:
+        # Su Mac: pulisci path, estrai nome
+        raw = raw.rstrip("/").replace("\\", "")
+        if "/" in raw:
+            name = raw.split("/")[-1]
+        else:
+            name = raw
+        if name.endswith(".app"):
+            name = name[:-4]
+        return name, name  # Su Mac si apre per nome
+
+    elif IS_WIN:
+        # Su Windows: se è un path, tienilo per il lancio
+        cleaned = raw.replace("/", "\\")
+        # Estrai il nome per il display
+        basename = cleaned.split("\\")[-1] if "\\" in cleaned else cleaned
+        for ext in (".exe", ".lnk", ".url"):
+            if basename.lower().endswith(ext):
+                basename = basename[:-len(ext)]
+        # Se è un path completo, usalo per il lancio
+        if "\\" in cleaned or ":" in cleaned:
+            return basename, cleaned
+        else:
+            return basename, basename
+
+    return raw, raw
 
 def parse_spotify_link(raw):
     raw = raw.strip()
@@ -113,7 +131,7 @@ def parse_spotify_link(raw):
 
 def setup():
     print()
-    cfg = {"apps": [], "spotify_uri": ""}
+    cfg = {"apps": [], "app_paths": [], "spotify_uri": ""}
 
     speak_and_show(
         "Ciao! Benvenuto nella configurazione di Clapper.",
@@ -121,8 +139,8 @@ def setup():
     )
     time.sleep(0.5)
     speak_and_show(
-        "Sarò il tuo assistente. Configuriamo tutto insieme.",
-        "Sarò il tuo assistente. Configuriamo tutto insieme."
+        "Saro' il tuo assistente. Configuriamo tutto insieme.",
+        "Saro' il tuo assistente. Configuriamo tutto insieme."
     )
     time.sleep(1)
 
@@ -132,10 +150,16 @@ def setup():
         "Per prima cosa, dimmi quali app vuoi far partire."
     )
     time.sleep(0.3)
-    speak_and_show(
-        "Trascina le app qui dentro, oppure scrivi il nome, e premi invio.",
-        "Trascina le app qui dentro, oppure scrivi il nome, e premi invio."
-    )
+    if IS_WIN:
+        speak_and_show(
+            "Trascina gli exe qui dentro, oppure scrivi il nome, e premi invio.",
+            "Trascina gli exe qui dentro, oppure scrivi il nome, e premi invio."
+        )
+    else:
+        speak_and_show(
+            "Trascina le app qui dentro, oppure scrivi il nome, e premi invio.",
+            "Trascina le app qui dentro, oppure scrivi il nome, e premi invio."
+        )
     speak_and_show(
         "Quando hai finito, premi invio a vuoto e andiamo avanti.",
         "Quando hai finito, premi invio a vuoto e andiamo avanti."
@@ -143,6 +167,7 @@ def setup():
     print()
 
     apps = []
+    app_paths = []
     while True:
         raw = input(f"    App #{len(apps)+1}: ").strip()
         if not raw:
@@ -151,12 +176,14 @@ def setup():
                 print("    Serve almeno 2 app. Riprova.")
                 continue
             break
-        name = clean_app_name(raw)
+        name, path = clean_app_input(raw)
         if name:
             apps.append(name)
+            app_paths.append(path)
             say(f"{name}, perfetto.", wait=True)
-            typewrite(f"             → {name}")
+            typewrite(f"             -> {name}")
     cfg["apps"] = apps
+    cfg["app_paths"] = app_paths
 
     n = len(apps)
     speak_and_show(
@@ -185,10 +212,10 @@ def setup():
     if uri:
         cfg["spotify_uri"] = uri
         say("Canzone registrata. Ottima scelta musicale.", wait=True)
-        typewrite(f"             → {uri}")
+        typewrite(f"             -> {uri}")
     else:
         say("Nessun problema, si va anche senza musica.", wait=True)
-        typewrite("             → nessuna canzone")
+        typewrite("             -> nessuna canzone")
 
     save_config(cfg)
 
@@ -243,11 +270,22 @@ def get_screen_size():
         user32 = ctypes.windll.user32
         return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
 
-def open_app(name):
+def open_app(name, path=None):
+    target = path or name
     if IS_MAC:
-        return subprocess.run(["open", "-a", name], capture_output=True, text=True)
+        return subprocess.run(["open", "-a", target], capture_output=True, text=True)
     elif IS_WIN:
-        return subprocess.run(["start", "", name], shell=True, capture_output=True, text=True)
+        # Se è un path completo, aprilo direttamente
+        if os.path.exists(target):
+            os.startfile(target)
+        else:
+            # Prova col comando start
+            subprocess.run(["start", "", target], shell=True,
+                           capture_output=True, text=True)
+        # Ritorna un oggetto con returncode 0
+        class Result:
+            returncode = 0
+        return Result()
 
 def arrange_windows(apps):
     n = len(apps)
@@ -303,10 +341,9 @@ def arrange_windows(apps):
 
     elif IS_WIN:
         import ctypes
+        import ctypes.wintypes
         user32 = ctypes.windll.user32
 
-        # Trova le finestre per nome app
-        import ctypes.wintypes
         EnumWindows = user32.EnumWindows
         WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
         GetWindowText = user32.GetWindowTextW
@@ -315,7 +352,6 @@ def arrange_windows(apps):
         MoveWindow = user32.MoveWindow
 
         def find_window(app_name):
-            """Trova la prima finestra visibile il cui titolo contiene app_name."""
             result = []
             def callback(hwnd, _):
                 if IsWindowVisible(hwnd):
@@ -352,6 +388,7 @@ def arrange_windows(apps):
 
 def trigger(cfg):
     apps = cfg["apps"]
+    app_paths = cfg.get("app_paths", apps)
     print(f"\n\U0001f44f  Doppio clap! Avvio {len(apps)} app...\n")
 
     say("Inizializzazione sistemi in corso")
@@ -371,12 +408,11 @@ def trigger(cfg):
         time.sleep(0.5)
 
     # Apri le app
-    for app in apps:
+    for i, app in enumerate(apps):
+        path = app_paths[i] if i < len(app_paths) else app
         print(f"    Apro {app}...")
-        result = open_app(app)
-        if result.returncode != 0:
-            print(f"    \u26a0\ufe0f  '{app}' non trovata")
-        time.sleep(0.3)
+        open_app(app, path)
+        time.sleep(0.5)
 
     # Tiling
     print("\U0001fa9f  Disposizione finestre...")
@@ -391,7 +427,7 @@ def trigger(cfg):
 def listen(cfg):
     n = len(cfg["apps"])
     cols, rows = grid_shape(n)
-    print(f"\U0001f44f  Clapper attivo — {n} app in griglia {cols}x{rows}")
+    print(f"\U0001f44f  Clapper attivo -- {n} app in griglia {cols}x{rows}")
     print(f"    App: {', '.join(cfg['apps'])}")
     if cfg.get("spotify_uri"):
         print(f"    Musica: attiva")
