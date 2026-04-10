@@ -159,12 +159,8 @@ def setup():
 
     print()
     speak_and_show(
-        "Per avviare, scrivi: bash start.sh",
-        "Per avviare, scrivi bash start punto sh."
-    )
-    speak_and_show(
-        "Batti le mani due volte e ci penso io. A tra poco!",
-        "Batti le mani due volte, e ci penso io. A tra poco!"
+        "Ora parto in automatico. Batti le mani due volte e ci penso io!",
+        "Ora parto in automatico. Batti le mani due volte, e ci penso io!"
     )
     print()
 
