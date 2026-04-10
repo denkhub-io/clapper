@@ -62,51 +62,111 @@ def parse_spotify_link(raw):
 
 def setup():
     print()
-    print("  ┌─────────────────────────────────┐")
-    print("  │   CLAPPER SETUP                  │")
-    print("  └─────────────────────────────────┘")
-    print()
-
     cfg = {"apps": [], "spotify_uri": ""}
 
+    # Benvenuto
+    speak_and_show(
+        "Ciao! Benvenuto nella configurazione di Clapper.",
+        "Ciao! Benvenuto nella configurazione di Clapper."
+    )
+    time.sleep(0.5)
+    speak_and_show(
+        "Sarò il tuo assistente. Configuriamo tutto insieme.",
+        "Sarò il tuo assistente. Configuriamo tutto insieme."
+    )
+    time.sleep(1)
+
     # Apps
-    print("  Quali app vuoi aprire con il doppio clap?")
-    print("  Trascina le app qui dentro, oppure scrivi il nome.")
-    print("  Riga vuota per terminare.")
     print()
+    speak_and_show(
+        "Per prima cosa, dimmi quali app vuoi far partire.",
+        "Per prima cosa, dimmi quali app vuoi far partire."
+    )
+    time.sleep(0.3)
+    speak_and_show(
+        "Trascina le app qui dentro, oppure scrivi il nome.",
+        "Trascina le app qui dentro, oppure scrivi il nome."
+    )
+    speak_and_show(
+        "Quando hai finito, premi invio a vuoto.",
+        "Quando hai finito, premi invio a vuoto."
+    )
+    print()
+
     apps = []
     while True:
         raw = input(f"    App #{len(apps)+1}: ").strip()
         if not raw:
             if len(apps) < 2:
+                say("Dai, servono almeno due app.", wait=True)
                 print("    Serve almeno 2 app. Riprova.")
                 continue
             break
         name = clean_app_name(raw)
         if name:
             apps.append(name)
-            print(f"             → {name}")
+            say(f"{name}, perfetto.", wait=True)
+            typewrite(f"             → {name}")
     cfg["apps"] = apps
+
+    n = len(apps)
+    speak_and_show(
+        f"Ottimo, {n} app registrate. Bella scelta.",
+        f"Ottimo, {n} app registrate. Bella scelta."
+    )
+    time.sleep(0.5)
 
     # Spotify
     print()
-    print("  Canzone Spotify: apri Spotify, tasto destro sulla canzone")
-    print("  → Condividi → Copia link, e incollalo qui.")
-    link = input("  Link (o invio per saltare): ").strip()
+    speak_and_show(
+        "Ora la parte divertente: la musica.",
+        "Ora la parte divertente. La musica."
+    )
+    time.sleep(0.3)
+    speak_and_show(
+        "Se vuoi, incolla qui il link di una canzone da Spotify.",
+        "Se vuoi, incolla qui il link di una canzone da Spotify."
+    )
+    speak_and_show(
+        "Lo trovi con tasto destro sulla canzone, Condividi, Copia link.",
+        "Lo trovi con tasto destro sulla canzone, poi condividi, e copia link."
+    )
+    print()
+    link = input("    Link Spotify (o invio per saltare): ").strip()
     uri = parse_spotify_link(link)
     if uri:
         cfg["spotify_uri"] = uri
-        print(f"             → {uri}")
+        say("Canzone registrata. Ottima scelta musicale.", wait=True)
+        typewrite(f"             → {uri}")
+    else:
+        say("Nessun problema, si va anche senza musica.", wait=True)
+        typewrite("             → nessuna canzone")
 
     save_config(cfg)
 
-    n = len(apps)
+    # Recap
+    print()
+    time.sleep(0.5)
     cols, rows = grid_shape(n)
-    print(f"\n  Layout: {n} app in griglia {cols}x{rows}")
-    print(f"  App: {', '.join(apps)}")
+    speak_and_show(
+        f"Tutto pronto. Le tue {n} app saranno disposte in una griglia {cols} per {rows}.",
+        f"Tutto pronto. Le tue {n} app saranno disposte in una griglia {cols} per {rows}."
+    )
+    time.sleep(0.3)
+    print(f"    App: {', '.join(apps)}")
     if uri:
-        print(f"  Musica: attiva")
-    print("\n  Esegui 'bash start.sh' per avviare.\n")
+        print(f"    Musica: attiva")
+
+    print()
+    speak_and_show(
+        "Per avviare, scrivi: bash start.sh",
+        "Per avviare, scrivi bash start punto sh."
+    )
+    speak_and_show(
+        "Batti le mani due volte e ci penso io. A tra poco!",
+        "Batti le mani due volte, e ci penso io. A tra poco!"
+    )
+    print()
 
 # ─── TILING ──────────────────────────────────────────────────────────────────
 
@@ -183,18 +243,38 @@ def arrange_windows(apps):
 
 # ─── TRIGGER ─────────────────────────────────────────────────────────────────
 
-def say(text):
-    subprocess.Popen(["say", "-v", "Luca", text])
+def say(text, wait=False):
+    """Parla con la voce di Luca. Se wait=True, aspetta che finisca."""
+    p = subprocess.Popen(["say", "-v", "Luca", text])
+    if wait:
+        p.wait()
+
+def typewrite(text, delay=0.03):
+    """Effetto macchina da scrivere: stampa carattere per carattere."""
+    for ch in text:
+        sys.stdout.write(ch)
+        sys.stdout.flush()
+        time.sleep(delay)
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+
+def speak_and_show(text, voice_text=None, delay=0.03):
+    """Mostra il testo con effetto typewriter mentre la voce parla."""
+    say(voice_text or text)
+    typewrite(f"  {text}", delay)
 
 def trigger(cfg):
     apps = cfg["apps"]
-    print(f"\n\U0001f44f  Doppio clap! Avvio {len(apps)} app...\n")
+    n = len(apps)
 
-    say("Inizializzazione sistemi in corso")
+    speak_and_show(
+        f"Doppio clap rilevato. Preparo {n} app...",
+        f"Ricevuto! Preparo tutto, un attimo."
+    )
 
     # Spotify
     if cfg.get("spotify_uri"):
-        print("\U0001f3b8  Spotify...")
+        typewrite("  Accendo la musica...")
         subprocess.run(["open", "-a", "Spotify"])
         time.sleep(2)
         subprocess.run(["osascript", "-e",
@@ -202,20 +282,24 @@ def trigger(cfg):
         time.sleep(0.5)
 
     # Apri le app
+    say(f"Apro le app.")
     for app in apps:
-        print(f"    Apro {app}...")
+        typewrite(f"    Apro {app}...")
         result = subprocess.run(["open", "-a", app], capture_output=True, text=True)
         if result.returncode != 0:
-            print(f"    \u26a0\ufe0f  '{app}' non trovata")
+            typewrite(f"    \u26a0\ufe0f  '{app}' non trovata")
         time.sleep(0.3)
 
     # Tiling
-    print("\U0001fa9f  Disposizione finestre...")
+    typewrite("  Sistemo le finestre...")
     time.sleep(3)
     arrange_windows(apps)
 
-    say("Operativo")
-    print("\u2705  Pronto.\n")
+    print()
+    speak_and_show(
+        "Tutto pronto. Buon lavoro!",
+        "Fatto! Tutto al suo posto. Buon lavoro!"
+    )
 
 # ─── LISTENER ────────────────────────────────────────────────────────────────
 
@@ -275,7 +359,6 @@ def main():
 
     cfg = load_config()
     if cfg is None or not cfg.get("apps"):
-        print("  Nessuna configurazione trovata. Avvio setup...\n")
         setup()
         cfg = load_config()
         if cfg is None or not cfg.get("apps"):
