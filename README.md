@@ -7,36 +7,38 @@ Batti le mani due volte. Il computer fa il resto.
 ## Quickstart
 
 ```bash
-git clone https://github.com/denkhub-io/clapper.git
+gh repo clone denkhub-io/clapper
 cd clapper
-bash install.sh
+bash start.sh
 ```
 
-Fatto. L'installer configura tutto e ti guida nella scelta delle app.
+Al primo avvio parte un wizard vocale che ti guida nella configurazione: trascina le app nel terminale, incolla un link Spotify se vuoi, e sei pronto. Dopo il setup il programma parte in automatico.
 
 ## Uso
 
-```bash
-# Avvia l'ascolto
-bash start.sh
+Dalla seconda volta in poi basta:
 
-# Riconfigura le app
+```bash
+bash start.sh
+```
+
+Per riconfigurare le app:
+
+```bash
 bash start.sh setup
 ```
 
 ## Come funziona
 
-1. L'installer installa le dipendenze e avvia il setup
-2. Scegli le app da aprire (2, 3, 4, 5, quante ne vuoi)
-3. Opzionale: traccia Spotify, voce TTS, sensibilità microfono
-4. Doppio clap → le app si aprono e si dispongono in griglia automatica
-
-La configurazione viene salvata in `~/.clapper.json` — riesegui `setup` quando vuoi cambiarla.
+1. Al primo avvio, un wizard parlante ti guida nella scelta delle app e della canzone
+2. La configurazione viene salvata in `~/.clapper.json`
+3. Il programma ascolta il microfono — doppio clap e le app si aprono in griglia automatica
+4. Supporta da 2 a 6+ app, disposte dinamicamente sullo schermo
 
 ## Requisiti
 
+- macOS
 - Python 3.10+
-- macOS (usa AppleScript per il window management)
 - Microfono funzionante
 
 ## Licenza
