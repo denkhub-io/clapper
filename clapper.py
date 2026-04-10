@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 clapper — Double clap to launch & tile your apps.
-Run `clapper setup` to configure, then `clapper` to listen.
+Run `clapper setup` to configure, then `start.sh` to listen.
 """
 
 import json
@@ -17,17 +17,6 @@ import sounddevice as sd
 
 CONFIG_PATH = os.path.expanduser("~/.clapper.json")
 
-DEFAULT_CONFIG = {
-    "apps": [],
-    "spotify_track": "",
-    "clap_threshold": 0.10,
-    "double_clap_max": 1.2,
-    "cooldown": 4.0,
-    "voice": "Luca",
-    "greeting": "Inizializzazione sistemi in corso",
-    "ready_msg": "Operativo",
-}
-
 # ─── CONFIG ──────────────────────────────────────────────────────────────────
 
 def load_config():
@@ -41,6 +30,21 @@ def save_config(cfg):
         json.dump(cfg, f, indent=2)
     print(f"\n  Configurazione salvata in {CONFIG_PATH}")
 
+# ─── SPOTIFY SEARCH ──────────────────────────────────────────────────────────
+
+def search_spotify_track(query):
+    """Cerca una canzone su Spotify tramite AppleScript e restituisce l'URI."""
+    script = f'''
+    tell application "Spotify"
+        search "{query}"
+    end tell
+    '''
+    # Spotify AppleScript non supporta search, usiamo l'approccio diretto:
+    # apriamo la ricerca via URL
+    safe_query = query.replace(" ", "%20")
+    uri = f"spotify:search:{safe_query}"
+    return uri
+
 # ─── SETUP WIZARD ────────────────────────────────────────────────────────────
 
 def setup():
@@ -50,11 +54,15 @@ def setup():
     print("  └─────────────────────────────────┘")
     print()
 
-    cfg = DEFAULT_CONFIG.copy()
+    cfg = {
+        "apps": [],
+        "spotify_track": "",
+    }
 
     # Apps
     print("  Quali app vuoi aprire con il doppio clap?")
-    print("  Inseriscile una per riga. Riga vuota per terminare.")
+    print("  Scrivi solo il nome (es. WhatsApp, Safari, Claude)")
+    print("  Riga vuota per terminare.")
     print()
     apps = []
     while True:
@@ -64,40 +72,22 @@ def setup():
                 print("    Serve almeno 2 app. Riprova.")
                 continue
             break
+        # Pulisci: se l'utente mette il path, estrai solo il nome
+        if "/" in name:
+            name = name.split("/")[-1].replace(".app", "").replace("\\", "")
+        if name.endswith(".app"):
+            name = name[:-4]
         apps.append(name)
     cfg["apps"] = apps
 
     # Spotify
     print()
-    track = input("  Traccia Spotify da riprodurre (URI o invio per saltare): ").strip()
-    cfg["spotify_track"] = track
-
-    # Voice
-    print()
-    voice = input(f"  Voce TTS (invio per '{cfg['voice']}'): ").strip()
-    if voice:
-        cfg["voice"] = voice
-
-    # Messages
-    print()
-    greeting = input(f"  Messaggio di avvio (invio per '{cfg['greeting']}'): ").strip()
-    if greeting:
-        cfg["greeting"] = greeting
-
-    ready = input(f"  Messaggio di ready (invio per '{cfg['ready_msg']}'): ").strip()
-    if ready:
-        cfg["ready_msg"] = ready
-
-    # Sensitivity
-    print()
-    print(f"  Sensibilità clap (attuale: {cfg['clap_threshold']})")
-    print("  Valori bassi = più sensibile, alti = meno sensibile")
-    sens = input("  Nuovo valore (invio per mantenere): ").strip()
-    if sens:
-        try:
-            cfg["clap_threshold"] = float(sens)
-        except ValueError:
-            print("    Valore non valido, mantengo il default.")
+    song = input("  Canzone da mettere su Spotify (es. Back in Black) o invio per saltare: ").strip()
+    if song:
+        # Cerca su Spotify via URL scheme
+        safe_song = song.replace(" ", "%20")
+        cfg["spotify_search"] = song
+        cfg["spotify_uri"] = f"spotify:search:{safe_song}"
 
     save_config(cfg)
 
@@ -106,14 +96,13 @@ def setup():
     cols, rows = grid_shape(n)
     print(f"\n  Layout: {n} app in griglia {cols}x{rows}")
     print(f"  App: {', '.join(apps)}")
-    if track:
-        print(f"  Musica: {track}")
-    print("\n  Esegui 'python clapper.py' per avviare l'ascolto.\n")
+    if song:
+        print(f"  Musica: {song}")
+    print("\n  Esegui 'bash start.sh' per avviare.\n")
 
 # ─── TILING ──────────────────────────────────────────────────────────────────
 
 def grid_shape(n):
-    """Calcola colonne e righe per n finestre."""
     if n <= 1:
         return 1, 1
     if n == 2:
@@ -151,7 +140,6 @@ def arrange_windows(apps):
         x = c * col_w
         y = menu + r * row_h
 
-        # Ultima riga: se ha meno app, allarga le finestre
         apps_in_row = min(cols, n - r * cols)
         if apps_in_row < cols:
             col_w_adj = sw // apps_in_row
@@ -178,23 +166,22 @@ def arrange_windows(apps):
 
 # ─── TRIGGER ─────────────────────────────────────────────────────────────────
 
-def say(text, voice="Luca"):
-    subprocess.Popen(["say", "-v", voice, text])
+def say(text):
+    subprocess.Popen(["say", "-v", "Luca", text])
 
 def trigger(cfg):
     apps = cfg["apps"]
     print(f"\n\U0001f44f  Doppio clap! Avvio {len(apps)} app...\n")
 
-    say(cfg["greeting"], cfg["voice"])
+    say("Inizializzazione sistemi in corso")
 
     # Spotify
-    if cfg.get("spotify_track"):
-        print("\U0001f3b8  Spotify...")
+    if cfg.get("spotify_uri"):
+        print(f"\U0001f3b8  Spotify: {cfg.get('spotify_search', '')}...")
         subprocess.run(["open", "-a", "Spotify"])
         time.sleep(2)
-        subprocess.run(["osascript", "-e",
-            f'tell application "Spotify" to play track "{cfg["spotify_track"]}"'])
-        time.sleep(0.5)
+        subprocess.run(["open", cfg["spotify_uri"]])
+        time.sleep(1)
 
     # Apri le app
     for app in apps:
@@ -209,21 +196,18 @@ def trigger(cfg):
     time.sleep(3)
     arrange_windows(apps)
 
-    say(cfg["ready_msg"], cfg["voice"])
+    say("Operativo")
     print("\u2705  Pronto.\n")
 
 # ─── LISTENER ────────────────────────────────────────────────────────────────
 
 def listen(cfg):
-    threshold = cfg.get("clap_threshold", 0.10)
-    max_gap = cfg.get("double_clap_max", 1.2)
-
     n = len(cfg["apps"])
     cols, rows = grid_shape(n)
     print(f"\U0001f44f  Clapper attivo — {n} app in griglia {cols}x{rows}")
     print(f"    App: {', '.join(cfg['apps'])}")
-    if cfg.get("spotify_track"):
-        print(f"    Musica: attiva")
+    if cfg.get("spotify_search"):
+        print(f"    Musica: {cfg['spotify_search']}")
     print("    Doppio clap per triggerare, Ctrl+C per uscire\n")
 
     last_clap = 0.0
@@ -240,13 +224,13 @@ def listen(cfg):
         rms = float(np.sqrt(np.mean(indata ** 2)))
         now = time.time()
 
-        if rms > threshold:
+        if rms > 0.10:
             if now - last_clap < 0.08:
                 return
 
             gap = now - last_clap
             last_clap = now
-            clap_count = (clap_count + 1) if gap <= max_gap else 1
+            clap_count = (clap_count + 1) if gap <= 1.2 else 1
             print(f"  clap #{clap_count}  (rms={rms:.3f})")
 
             if clap_count >= 2:

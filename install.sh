@@ -33,6 +33,7 @@ echo "  ✓ Dipendenze installate"
 
 # Permessi
 chmod +x "$SCRIPT_DIR/clapper.py"
+chmod +x "$SCRIPT_DIR/start.sh"
 
 # Avvia setup
 echo ""

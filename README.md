@@ -18,10 +18,10 @@ Fatto. L'installer configura tutto e ti guida nella scelta delle app.
 
 ```bash
 # Avvia l'ascolto
-.venv/bin/python clapper.py
+bash start.sh
 
 # Riconfigura le app
-.venv/bin/python clapper.py setup
+bash start.sh setup
 ```
 
 ## Come funziona
