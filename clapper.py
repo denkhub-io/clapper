@@ -114,12 +114,11 @@ def speak_and_show(text, voice_text=None, delay=0.03):
 
     # Typewriter interrompibile
     skipped = False
-    for ch in full_text:
+    for i, ch in enumerate(full_text):
         if _key_pressed():
             _flush_input()
             # Stampa il resto della frase tutto insieme
-            remaining = full_text[full_text.index(ch):]
-            sys.stdout.write(remaining)
+            sys.stdout.write(full_text[i:])
             sys.stdout.flush()
             skipped = True
             break
