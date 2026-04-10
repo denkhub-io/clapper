@@ -1,10 +1,9 @@
 @echo off
+chcp 65001 >nul 2>nul
 :: Clapper — install e setup su Windows
 
 echo.
-echo   ┌─────────────────────────────────┐
-echo   │   CLAPPER INSTALLER             │
-echo   └─────────────────────────────────┘
+echo   === CLAPPER INSTALLER ===
 echo.
 
 where python >nul 2>nul
@@ -24,7 +23,7 @@ if not exist "%VENV_DIR%" (
 echo   V Ambiente virtuale pronto
 
 echo   - Installo dipendenze...
-"%VENV_DIR%\Scripts\pip.exe" install --quiet sounddevice numpy pyttsx3
+"%VENV_DIR%\Scripts\pip.exe" install --quiet sounddevice numpy
 echo   V Dipendenze installate
 
 echo.

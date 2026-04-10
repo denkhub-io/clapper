@@ -36,19 +36,6 @@ def save_config(cfg):
 
 # ─── TTS ─────────────────────────────────────────────────────────────────────
 
-_tts_engine = None
-
-def _get_tts_engine():
-    global _tts_engine
-    if _tts_engine is None and IS_WIN:
-        import pyttsx3
-        _tts_engine = pyttsx3.init()
-        # Prova a impostare una voce italiana
-        for voice in _tts_engine.getProperty("voices"):
-            if "italian" in voice.name.lower() or "it" in voice.id.lower():
-                _tts_engine.setProperty("voice", voice.id)
-                break
-    return _tts_engine
 
 def say(text, wait=False):
     if IS_MAC:
@@ -56,12 +43,18 @@ def say(text, wait=False):
         if wait:
             p.wait()
     elif IS_WIN:
-        engine = _get_tts_engine()
+        # Usa PowerShell per il TTS — niente threading, niente pyttsx3
+        ps_text = text.replace("'", "''")
+        cmd = (
+            f"powershell -NoProfile -Command \""
+            f"Add-Type -AssemblyName System.Speech; "
+            f"$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+            f"$s.Speak('{ps_text}')\""
+        )
         if wait:
-            engine.say(text)
-            engine.runAndWait()
+            subprocess.run(cmd, shell=True, capture_output=True)
         else:
-            threading.Thread(target=lambda: (engine.say(text), engine.runAndWait())).start()
+            subprocess.Popen(cmd, shell=True)
 
 def typewrite(text, delay=0.03):
     for ch in text:
@@ -77,11 +70,16 @@ def speak_and_show(text, voice_text=None, delay=0.03):
         typewrite(f"  {text}", delay)
         p.wait()
     elif IS_WIN:
-        engine = _get_tts_engine()
-        t = threading.Thread(target=lambda: (engine.say(voice_text or text), engine.runAndWait()))
-        t.start()
+        ps_text = (voice_text or text).replace("'", "''")
+        cmd = (
+            f"powershell -NoProfile -Command \""
+            f"Add-Type -AssemblyName System.Speech; "
+            f"$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+            f"$s.Speak('{ps_text}')\""
+        )
+        p = subprocess.Popen(cmd, shell=True)
         typewrite(f"  {text}", delay)
-        t.join()
+        p.wait()
     else:
         typewrite(f"  {text}", delay)
 
