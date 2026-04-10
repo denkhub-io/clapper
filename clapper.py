@@ -34,13 +34,36 @@ def save_config(cfg):
         json.dump(cfg, f, indent=2)
     print(f"\n  Configurazione salvata in {CONFIG_PATH}")
 
+# ─── INPUT NON-BLOCCANTE ─────────────────────────────────────────────────────
+
+def _key_pressed():
+    """Controlla se è stato premuto un tasto senza bloccare."""
+    if IS_WIN:
+        import msvcrt
+        return msvcrt.kbhit()
+    else:
+        import select
+        return select.select([sys.stdin], [], [], 0)[0] != []
+
+def _flush_input():
+    """Svuota il buffer di input."""
+    if IS_WIN:
+        import msvcrt
+        while msvcrt.kbhit():
+            msvcrt.getch()
+    else:
+        import termios
+        termios.tcflush(sys.stdin, termios.TCIFLUSH)
+
+# Stato: se True, aspetta Enter prima della prossima frase
+_manual_mode = False
+
 # ─── TTS ─────────────────────────────────────────────────────────────────────
 
-def say(text, wait=False):
+def _start_voice(text):
+    """Avvia la voce in background, ritorna il processo."""
     if IS_MAC:
-        p = subprocess.Popen(["say", "-v", "Luca", text])
-        if wait:
-            p.wait()
+        return subprocess.Popen(["say", "-v", "Luca", text])
     elif IS_WIN:
         ps_text = text.replace('"', '`"').replace("'", "''")
         cmd = [
@@ -49,12 +72,23 @@ def say(text, wait=False):
             f"$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
             f"$s.Speak('{ps_text}')"
         ]
-        if wait:
-            subprocess.run(cmd, stdin=subprocess.DEVNULL,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return None
+
+def _kill_voice(proc):
+    """Ferma la voce."""
+    if proc and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=1)
+        except Exception:
+            proc.kill()
+
+def say(text, wait=False):
+    p = _start_voice(text)
+    if p and wait:
+        p.wait()
 
 def typewrite(text, delay=0.03):
     for ch in text:
@@ -65,25 +99,44 @@ def typewrite(text, delay=0.03):
     sys.stdout.flush()
 
 def speak_and_show(text, voice_text=None, delay=0.03):
+    """Mostra testo con typewriter + voce. Enter = skip frase, poi modalità manuale."""
+    global _manual_mode
+
+    # Se siamo in modalità manuale, aspetta Enter per continuare
+    if _manual_mode:
+        _flush_input()
+        input()
+        _manual_mode = False
+
     voice = voice_text or text
-    if IS_MAC:
-        p = subprocess.Popen(["say", "-v", "Luca", voice])
-        typewrite(f"  {text}", delay)
+    p = _start_voice(voice)
+    full_text = f"  {text}"
+
+    # Typewriter interrompibile
+    skipped = False
+    for ch in full_text:
+        if _key_pressed():
+            _flush_input()
+            # Stampa il resto della frase tutto insieme
+            remaining = full_text[full_text.index(ch):]
+            sys.stdout.write(remaining)
+            sys.stdout.flush()
+            skipped = True
+            break
+        sys.stdout.write(ch)
+        sys.stdout.flush()
+        time.sleep(delay)
+
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+
+    if skipped:
+        # Ferma la voce e passa in modalità manuale
+        _kill_voice(p)
+        _manual_mode = True
+    elif p:
+        # Aspetta che la voce finisca normalmente
         p.wait()
-    elif IS_WIN:
-        ps_text = voice.replace('"', '`"').replace("'", "''")
-        cmd = [
-            "powershell", "-NoProfile", "-Command",
-            f"Add-Type -AssemblyName System.Speech; "
-            f"$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
-            f"$s.Speak('{ps_text}')"
-        ]
-        p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        typewrite(f"  {text}", delay)
-        p.wait()
-    else:
-        typewrite(f"  {text}", delay)
 
 # ─── SETUP WIZARD ────────────────────────────────────────────────────────────
 
