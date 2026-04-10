@@ -4,7 +4,11 @@ Batti le mani due volte. Il computer fa il resto.
 
 **Doppio clap** → le tue app si aprono e si dispongono automaticamente sullo schermo. Scegli tu quali e quante.
 
+Pagina progetto: [denkhub.io/jarvis](https://denkhub.io/jarvis)
+
 ## Quickstart
+
+### macOS
 
 ```bash
 gh repo clone denkhub-io/clapper
@@ -12,21 +16,27 @@ cd clapper
 bash start.sh
 ```
 
+### Windows
+
+```cmd
+gh repo clone denkhub-io/clapper
+cd clapper
+start.bat
+```
+
 Al primo avvio parte un wizard vocale che ti guida nella configurazione: trascina le app nel terminale, incolla un link Spotify se vuoi, e sei pronto. Dopo il setup il programma parte in automatico.
 
 ## Uso
 
-Dalla seconda volta in poi basta:
+Dalla seconda volta in poi:
 
-```bash
-bash start.sh
-```
+- **macOS**: `bash start.sh`
+- **Windows**: `start.bat`
 
-Per riconfigurare le app:
+Per riconfigurare:
 
-```bash
-bash start.sh setup
-```
+- **macOS**: `bash start.sh setup`
+- **Windows**: `start.bat setup`
 
 ## Come funziona
 
@@ -37,9 +47,9 @@ bash start.sh setup
 
 ## Requisiti
 
-- macOS
 - Python 3.10+
 - Microfono funzionante
+- macOS o Windows
 
 ## Licenza
 
