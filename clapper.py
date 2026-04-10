@@ -259,9 +259,10 @@ def typewrite(text, delay=0.03):
     sys.stdout.flush()
 
 def speak_and_show(text, voice_text=None, delay=0.03):
-    """Mostra il testo con effetto typewriter mentre la voce parla."""
-    say(voice_text or text)
+    """Mostra il testo con effetto typewriter mentre la voce parla. Aspetta che finisca."""
+    p = subprocess.Popen(["say", "-v", "Luca", voice_text or text])
     typewrite(f"  {text}", delay)
+    p.wait()
 
 def trigger(cfg):
     apps = cfg["apps"]
