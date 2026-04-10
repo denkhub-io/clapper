@@ -103,14 +103,14 @@ def clean_app_input(raw):
         return name, name  # Su Mac si apre per nome
 
     elif IS_WIN:
-        # Su Windows: se è un path, tienilo per il lancio
+        # Su Windows: accetta .exe, .lnk (collegamenti), .url
         cleaned = raw.replace("/", "\\")
         # Estrai il nome per il display
         basename = cleaned.split("\\")[-1] if "\\" in cleaned else cleaned
-        for ext in (".exe", ".lnk", ".url"):
-            if basename.lower().endswith(ext):
+        for ext in (".exe", ".lnk", ".url", " - Collegamento", " - Shortcut"):
+            if basename.lower().endswith(ext.lower()):
                 basename = basename[:-len(ext)]
-        # Se è un path completo, usalo per il lancio
+        # Se è un path completo o un collegamento, usalo per il lancio
         if "\\" in cleaned or ":" in cleaned:
             return basename, cleaned
         else:
@@ -171,9 +171,9 @@ def setup():
     while True:
         raw = input(f"    App #{len(apps)+1}: ").strip()
         if not raw:
-            if len(apps) < 2:
-                say("Dai, servono almeno due app.", wait=True)
-                print("    Serve almeno 2 app. Riprova.")
+            if len(apps) < 1:
+                say("Dai, serve almeno un'app.", wait=True)
+                print("    Serve almeno 1 app. Riprova.")
                 continue
             break
         name, path = clean_app_input(raw)
@@ -414,10 +414,11 @@ def trigger(cfg):
         open_app(app, path)
         time.sleep(0.5)
 
-    # Tiling
-    print("\U0001fa9f  Disposizione finestre...")
-    time.sleep(3)
-    arrange_windows(apps)
+    # Tiling (skip con 1 sola app)
+    if len(apps) > 1:
+        print("\U0001fa9f  Disposizione finestre...")
+        time.sleep(3)
+        arrange_windows(apps)
 
     say("Operativo")
     print("\u2705  Pronto.\n")
