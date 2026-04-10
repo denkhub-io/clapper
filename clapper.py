@@ -265,16 +265,13 @@ def speak_and_show(text, voice_text=None, delay=0.03):
 
 def trigger(cfg):
     apps = cfg["apps"]
-    n = len(apps)
+    print(f"\n\U0001f44f  Doppio clap! Avvio {len(apps)} app...\n")
 
-    speak_and_show(
-        f"Doppio clap rilevato. Preparo {n} app...",
-        f"Ricevuto! Preparo tutto, un attimo."
-    )
+    say("Inizializzazione sistemi in corso")
 
     # Spotify
     if cfg.get("spotify_uri"):
-        typewrite("  Accendo la musica...")
+        print("\U0001f3b8  Spotify...")
         subprocess.run(["open", "-a", "Spotify"])
         time.sleep(2)
         subprocess.run(["osascript", "-e",
@@ -282,24 +279,20 @@ def trigger(cfg):
         time.sleep(0.5)
 
     # Apri le app
-    say(f"Apro le app.")
     for app in apps:
-        typewrite(f"    Apro {app}...")
+        print(f"    Apro {app}...")
         result = subprocess.run(["open", "-a", app], capture_output=True, text=True)
         if result.returncode != 0:
-            typewrite(f"    \u26a0\ufe0f  '{app}' non trovata")
+            print(f"    \u26a0\ufe0f  '{app}' non trovata")
         time.sleep(0.3)
 
     # Tiling
-    typewrite("  Sistemo le finestre...")
+    print("\U0001fa9f  Disposizione finestre...")
     time.sleep(3)
     arrange_windows(apps)
 
-    print()
-    speak_and_show(
-        "Tutto pronto. Buon lavoro!",
-        "Fatto! Tutto al suo posto. Buon lavoro!"
-    )
+    say("Operativo")
+    print("\u2705  Pronto.\n")
 
 # ─── LISTENER ────────────────────────────────────────────────────────────────
 
