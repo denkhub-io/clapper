@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 clapper — Double clap to launch & tile your apps.
-Run `clapper setup` to configure, then `start.sh` to listen.
 """
 
 import json
@@ -30,22 +29,36 @@ def save_config(cfg):
         json.dump(cfg, f, indent=2)
     print(f"\n  Configurazione salvata in {CONFIG_PATH}")
 
-# ─── SPOTIFY SEARCH ──────────────────────────────────────────────────────────
-
-def search_spotify_track(query):
-    """Cerca una canzone su Spotify tramite AppleScript e restituisce l'URI."""
-    script = f'''
-    tell application "Spotify"
-        search "{query}"
-    end tell
-    '''
-    # Spotify AppleScript non supporta search, usiamo l'approccio diretto:
-    # apriamo la ricerca via URL
-    safe_query = query.replace(" ", "%20")
-    uri = f"spotify:search:{safe_query}"
-    return uri
-
 # ─── SETUP WIZARD ────────────────────────────────────────────────────────────
+
+def clean_app_name(raw):
+    """Estrae il nome app da qualsiasi input: path, .app, drag & drop."""
+    raw = raw.strip().rstrip("/")
+    # Rimuovi escape e virgolette dal drag & drop
+    raw = raw.replace("\\", "").strip("'\"")
+    # Se è un path, prendi solo il nome
+    if "/" in raw:
+        raw = raw.split("/")[-1]
+    # Rimuovi .app
+    if raw.endswith(".app"):
+        raw = raw[:-4]
+    return raw
+
+def parse_spotify_link(raw):
+    """Converte un link Spotify in URI. Accetta link o URI."""
+    raw = raw.strip()
+    if not raw:
+        return None
+    # https://open.spotify.com/track/4OHVCeQYPncEwZOtNAJZZx?si=xxx
+    if "open.spotify.com" in raw:
+        # Estrai tipo e ID dal path
+        parts = raw.split("open.spotify.com/")[1].split("?")[0]
+        # parts = "track/4OHVCeQYPncEwZOtNAJZZx"
+        return "spotify:" + parts.replace("/", ":")
+    # Già un URI spotify:track:xxx
+    if raw.startswith("spotify:"):
+        return raw
+    return None
 
 def setup():
     print()
@@ -54,50 +67,45 @@ def setup():
     print("  └─────────────────────────────────┘")
     print()
 
-    cfg = {
-        "apps": [],
-        "spotify_track": "",
-    }
+    cfg = {"apps": [], "spotify_uri": ""}
 
     # Apps
     print("  Quali app vuoi aprire con il doppio clap?")
-    print("  Scrivi solo il nome (es. WhatsApp, Safari, Claude)")
+    print("  Trascina le app qui dentro, oppure scrivi il nome.")
     print("  Riga vuota per terminare.")
     print()
     apps = []
     while True:
-        name = input(f"    App #{len(apps)+1}: ").strip()
-        if not name:
+        raw = input(f"    App #{len(apps)+1}: ").strip()
+        if not raw:
             if len(apps) < 2:
                 print("    Serve almeno 2 app. Riprova.")
                 continue
             break
-        # Pulisci: se l'utente mette il path, estrai solo il nome
-        if "/" in name:
-            name = name.split("/")[-1].replace(".app", "").replace("\\", "")
-        if name.endswith(".app"):
-            name = name[:-4]
-        apps.append(name)
+        name = clean_app_name(raw)
+        if name:
+            apps.append(name)
+            print(f"             → {name}")
     cfg["apps"] = apps
 
     # Spotify
     print()
-    song = input("  Canzone da mettere su Spotify (es. Back in Black) o invio per saltare: ").strip()
-    if song:
-        # Cerca su Spotify via URL scheme
-        safe_song = song.replace(" ", "%20")
-        cfg["spotify_search"] = song
-        cfg["spotify_uri"] = f"spotify:search:{safe_song}"
+    print("  Canzone Spotify: apri Spotify, tasto destro sulla canzone")
+    print("  → Condividi → Copia link, e incollalo qui.")
+    link = input("  Link (o invio per saltare): ").strip()
+    uri = parse_spotify_link(link)
+    if uri:
+        cfg["spotify_uri"] = uri
+        print(f"             → {uri}")
 
     save_config(cfg)
 
-    # Preview
     n = len(apps)
     cols, rows = grid_shape(n)
     print(f"\n  Layout: {n} app in griglia {cols}x{rows}")
     print(f"  App: {', '.join(apps)}")
-    if song:
-        print(f"  Musica: {song}")
+    if uri:
+        print(f"  Musica: attiva")
     print("\n  Esegui 'bash start.sh' per avviare.\n")
 
 # ─── TILING ──────────────────────────────────────────────────────────────────
@@ -114,11 +122,18 @@ def grid_shape(n):
     return cols, rows
 
 def get_screen_size():
-    script = 'tell application "Finder" to get bounds of window of desktop'
+    script = '''
+    tell application "Finder"
+        set _b to bounds of window of desktop
+        set _w to item 3 of _b
+        set _h to item 4 of _b
+        return ((_w as text) & "," & (_h as text))
+    end tell
+    '''
     out = subprocess.run(["osascript", "-e", script],
                          capture_output=True, text=True).stdout.strip()
-    parts = [int(x.strip()) for x in out.split(",")]
-    return parts[2], parts[3]
+    parts = out.split(",")
+    return int(parts[0]), int(parts[1])
 
 def arrange_windows(apps):
     n = len(apps)
@@ -134,35 +149,37 @@ def arrange_windows(apps):
     col_w = sw // cols
     row_h = avail_h // rows
 
+    # Costruisco un unico AppleScript per tutte le finestre (più veloce e affidabile)
+    lines = []
     for i, app in enumerate(apps):
         r = i // cols
         c = i % cols
-        x = c * col_w
-        y = menu + r * row_h
 
+        # Ultima riga: allarga se ha meno app
         apps_in_row = min(cols, n - r * cols)
         if apps_in_row < cols:
-            col_w_adj = sw // apps_in_row
-            c_adj = i - r * cols
-            x = c_adj * col_w_adj
-            w = col_w_adj
+            w = sw // apps_in_row
+            x = (i - r * cols) * w
         else:
             w = col_w
+            x = c * col_w
+        y = menu + r * row_h
         h = row_h
 
-        script = f'''
+        lines.append(f'''
         tell application "{app}" to activate
-        delay 0.3
-        tell application "System Events"
-            tell process "{app}"
-                try
-                    set position of window 1 to {{{x}, {y}}}
-                    set size of window 1 to {{{w}, {h}}}
-                end try
+        delay 0.5
+        try
+            tell application "System Events" to tell (first process whose frontmost is true)
+                set position of window 1 to {{{x}, {y}}}
+                set size of window 1 to {{{w}, {h}}}
             end tell
-        end tell
-        '''
-        subprocess.run(["osascript", "-e", script], capture_output=True)
+        end try
+        delay 0.2
+        ''')
+
+    script = "\n".join(lines)
+    subprocess.run(["osascript", "-e", script], capture_output=True)
 
 # ─── TRIGGER ─────────────────────────────────────────────────────────────────
 
@@ -177,11 +194,12 @@ def trigger(cfg):
 
     # Spotify
     if cfg.get("spotify_uri"):
-        print(f"\U0001f3b8  Spotify: {cfg.get('spotify_search', '')}...")
+        print("\U0001f3b8  Spotify...")
         subprocess.run(["open", "-a", "Spotify"])
         time.sleep(2)
-        subprocess.run(["open", cfg["spotify_uri"]])
-        time.sleep(1)
+        subprocess.run(["osascript", "-e",
+            f'tell application "Spotify" to play track "{cfg["spotify_uri"]}"'])
+        time.sleep(0.5)
 
     # Apri le app
     for app in apps:
@@ -206,8 +224,8 @@ def listen(cfg):
     cols, rows = grid_shape(n)
     print(f"\U0001f44f  Clapper attivo — {n} app in griglia {cols}x{rows}")
     print(f"    App: {', '.join(cfg['apps'])}")
-    if cfg.get("spotify_search"):
-        print(f"    Musica: {cfg['spotify_search']}")
+    if cfg.get("spotify_uri"):
+        print(f"    Musica: attiva")
     print("    Doppio clap per triggerare, Ctrl+C per uscire\n")
 
     last_clap = 0.0
