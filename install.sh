@@ -18,7 +18,7 @@ echo "  ✓ Python 3 trovato"
 
 # Install dependencies
 echo "  → Installo dipendenze..."
-pip3 install --quiet sounddevice numpy 2>/dev/null || pip install --quiet sounddevice numpy
+python3 -m pip install --quiet sounddevice numpy
 echo "  ✓ Dipendenze installate"
 
 # Permessi
