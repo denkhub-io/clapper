@@ -84,12 +84,12 @@ def setup():
     )
     time.sleep(0.3)
     speak_and_show(
-        "Trascina le app qui dentro, oppure scrivi il nome.",
-        "Trascina le app qui dentro, oppure scrivi il nome."
+        "Trascina le app qui dentro, oppure scrivi il nome, e premi invio.",
+        "Trascina le app qui dentro, oppure scrivi il nome, e premi invio."
     )
     speak_and_show(
-        "Quando hai finito, premi invio a vuoto.",
-        "Quando hai finito, premi invio a vuoto."
+        "Quando hai finito, premi invio a vuoto e andiamo avanti.",
+        "Quando hai finito, premi invio a vuoto e andiamo avanti."
     )
     print()
 
